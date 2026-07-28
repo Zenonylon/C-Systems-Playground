@@ -62,15 +62,21 @@ prefetch-sim/
 │   ├── buffer_pool.h       # block cache public API
 │   ├── readahead.h         # fixed/adaptive read-ahead public API
 │   ├── read_around.h       # read-around cache public API
-│   └── workload_gen.h      # workload generator public API
+│   ├── workload_gen.h      # workload generator public API
+│   └── timer.h             # timing utility, shared by Stage 0-4 benchmarks
 ├── src/
 │   ├── buffer_pool.c       # fixed-capacity map of block# -> buffer,
 │   │                       # eviction policy, hit/miss accounting (Stage 0-3 common)
 │   ├── readahead.c         # sequential-access detection + fixed/adaptive prefetch
 │   ├── read_around.c       # on-miss window fetch around the requested block
-│   ├── workload_gen.c      # sequential / random / strided access trace generation
+│   ├── workload_gen.c      # sequential/random offset generation (Stage 0),
+│   │                       # extended with strided/zipfian later (Stage 4)
+│   ├── timer.c             # clock_gettime(CLOCK_MONOTONIC)-based timing
 │   └── main.c              # wires a workload + strategy together, emits stats
 ├── benchmarks/
+│   ├── baseline_bench.c    # Stage 0: raw read()/O_DIRECT vs page-cache I/O,
+│   │                       # no buffer_pool/readahead involved — stays as the
+│   │                       # baseline Stage 1-3 strategies are compared against
 │   └── run_experiments.sh  # sweeps workload x strategy x parameters, writes CSVs
 ├── results/
 │   └── *.csv, graphs       # raw experiment output (generated, not hand-written)

@@ -1,0 +1,5 @@
+pattern,direct,file_size,block_size,repeats,mean_elapsed_sec,stddev_elapsed_sec,mean_throughput_mb_s
+sequential,0,1073741824,4096,5,0.324171,0.220914,3158.82
+sequential,1,1073741824,4096,5,27.793102,0.246132,36.84
+random,0,1073741824,4096,5,0.259085,0.122055,3952.37
+random,1,1073741824,4096,5,41.999106,0.542956,24.38
