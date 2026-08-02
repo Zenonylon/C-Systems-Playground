@@ -1,9 +1,19 @@
+// stage0에 대한 내용 -> readahead, cache가 없는 순수 I/O 성능 측정 도구.
+
 #include "workload_gen.h"
 #include <stdlib.h>
 #include <time.h>
 
 // 부분 Fisher-Yates: array[0..n-1] 중 앞 k개 자리에
 // 무작위로 뽑힌 값들이 채워지도록 k번만 반복
+static int compare_size_t(const void *a, const void *b) {
+    size_t x = *(const size_t *)a;
+    size_t y = *(const size_t *)b;
+    if (x < y) return -1;
+    if (x > y) return 1;
+    return 0;
+}
+
 static void partial_shuffle(size_t *array, size_t n, size_t k) {
     for (size_t i = 0; i < k; i++) {
         // 아직 확정 안 된 범위 [i, n-1] 중에서 무작위로 하나 선택
@@ -48,16 +58,7 @@ int generate_offsets(AccessPattern pattern, size_t file_size,
 
     if (pattern == PATTERN_SEQUENTIAL) {
         // 뽑힌 num_blocks개를 오름차순 정렬 후 오프셋으로 변환
-        // (개수가 많아지면 qsort로 교체 권장 — 지금은 버블 정렬로 충분)
-        for (size_t i = 0; i < num_blocks - 1; i++) {
-            for (size_t j = 0; j < num_blocks - 1 - i; j++) {
-                if (candidates[j] > candidates[j + 1]) {
-                    size_t tmp = candidates[j];
-                    candidates[j] = candidates[j + 1];
-                    candidates[j + 1] = tmp;
-                }
-            }
-        }
+        qsort(candidates, num_blocks, sizeof(size_t), compare_size_t);
     }
     // PATTERN_RANDOM이면 partial_shuffle로 이미 섞인 순서 그대로 사용
 

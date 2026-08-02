@@ -16,7 +16,7 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(BIN): $(SRC) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(SRC) -o $(BIN)
+	$(CC) $(CFLAGS) $(SRC) -lm -o $(BIN)
 
 $(BASELINE_BIN): $(BASELINE_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(BASELINE_SRC) -lm -o $(BASELINE_BIN)
