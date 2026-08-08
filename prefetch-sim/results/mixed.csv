@@ -1,0 +1,5 @@
+capacity_blocks,fixed_window,min_window,max_window,file_size,block_size,num_accesses,repeats,stage1_mean_elapsed_sec,stage1_stddev_elapsed_sec,stage1_mean_throughput_mb_s,stage1_mean_hit_rate,stage2_mean_elapsed_sec,stage2_stddev_elapsed_sec,stage2_mean_throughput_mb_s,stage2_mean_hit_rate
+64,4,4,64,536870912,4096,8000,5,0.034680,0.005763,901.10,0.9775,0.034442,0.005609,907.32,0.9776
+64,16,4,64,536870912,4096,8000,5,0.037313,0.003717,837.52,0.9758,0.037825,0.003416,826.18,0.9758
+64,64,4,64,536870912,4096,8000,5,0.032868,0.005031,950.77,0.9787,0.032627,0.003877,957.79,0.9787
+64,256,4,64,536870912,4096,8000,5,0.938661,0.005639,33.29,0.0000,0.036441,0.005622,857.54,0.9757

@@ -8,9 +8,18 @@ BIN := $(BUILD_DIR)/prefetch-sim
 BASELINE_SRC := benchmarks/baseline_bench.c src/timer.c src/workload_gen.c
 BASELINE_BIN := $(BUILD_DIR)/baseline_bench
 
+INTERRUPTED_SRC := benchmarks/interrupted_bench.c src/buffer_pool.c src/readahead.c src/timer.c
+INTERRUPTED_BIN := $(BUILD_DIR)/interrupted_bench
+
+ADAPTIVE_SRC := benchmarks/adaptive_bench.c src/buffer_pool.c src/adaptive_readahead.c src/timer.c
+ADAPTIVE_BIN := $(BUILD_DIR)/adaptive_bench
+
+MIXED_SRC := benchmarks/mixed_bench.c src/buffer_pool.c src/readahead.c src/adaptive_readahead.c src/timer.c
+MIXED_BIN := $(BUILD_DIR)/mixed_bench
+
 .PHONY: all clean
 
-all: $(BIN) $(BASELINE_BIN)
+all: $(BIN) $(BASELINE_BIN) $(INTERRUPTED_BIN) $(ADAPTIVE_BIN) $(MIXED_BIN)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -20,6 +29,15 @@ $(BIN): $(SRC) | $(BUILD_DIR)
 
 $(BASELINE_BIN): $(BASELINE_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(BASELINE_SRC) -lm -o $(BASELINE_BIN)
+
+$(INTERRUPTED_BIN): $(INTERRUPTED_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INTERRUPTED_SRC) -lm -o $(INTERRUPTED_BIN)
+
+$(ADAPTIVE_BIN): $(ADAPTIVE_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(ADAPTIVE_SRC) -lm -o $(ADAPTIVE_BIN)
+
+$(MIXED_BIN): $(MIXED_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(MIXED_SRC) -lm -o $(MIXED_BIN)
 
 clean:
 	rm -rf $(BUILD_DIR)
