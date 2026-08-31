@@ -13,8 +13,8 @@ if [ ! -d "$DEST" ]; then
     exit 1
 fi
 
-for f in "$SCRIPT_DIR"/mm/*.c "$SCRIPT_DIR"/block/*.c; do
-    rel="${f#"$SCRIPT_DIR"/}"
+for f in "$SCRIPT_DIR"/src/mm/*.c "$SCRIPT_DIR"/src/block/*.c; do
+    rel="${f#"$SCRIPT_DIR"/src/}"
     target="$DEST/$rel"
     if [ ! -f "$target" ]; then
         echo "warn: $rel not found in $DEST, skipping" >&2
