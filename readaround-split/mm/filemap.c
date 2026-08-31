@@ -3399,6 +3399,8 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 		ra->size = ra->ra_pages;
 		ra->async_size = ra->ra_pages / 4;
 		ra->order = 0;
+		printk(KERN_INFO "RAROUND: pgoff=%lu ra_pages=%u size=%u\n",
+		       vmf->pgoff, ra->ra_pages, ra->size);
 	}
 
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
