@@ -32,8 +32,11 @@ what differs:
   second, so the fault page arrives sooner;
 - it is **not** a remedy for (b) — two halves still fetch the same
   `ra_pages` pages; only cancelling the second half would;
-- it **introduces** (c) — the split is what makes the marker placement
-  ambiguous.
+- it **can introduce** (c), but only if the split is done in the mm
+  layer where the marker is chosen. Doing the split at the block layer —
+  below `page_cache_ra_order`, which sets the marker — leaves the marker
+  where mm put it, so (c) is sidestepped. Confirming that is a check,
+  not a goal.
 
 So (a) is the reason to do the split; (b) and (c) are lenses for reading
 the result, not goals to solve.
@@ -64,7 +67,7 @@ re-merge / collapse it? Question (2) is the primary deliverable
   evidence for or against (a).
 - The result is written up through all three lenses: does the split help
   (a), does over-read stay unchanged as predicted (b), does the async
-  marker misbehave after the split (c).
+  marker stay untouched because the split is below the mm layer (c).
 
 Explicitly out of scope:
 
@@ -100,10 +103,16 @@ Explicitly out of scope:
   confirmed reachable end-to-end.
 - Problem and goals defined (this document). Design and evaluation not
   started.
-- Open: exact split boundary (window-compute vs. submit vs. bio/request
-  level); how the read-around marker is carried down to the block layer;
-  putting a filesystem + test file on the raw `nvme0n1`; extending
-  `tools/mmaptest.c` into the contention workload.
+- Split boundary decided (per advisor, 2026-09): the **block layer**.
+  The advice was two-part — proper design: mm tags the request as
+  "read-around" and the block layer splits on the tag; quick test: skip
+  the tag and have the block layer match the fixed read-around IO size
+  and split unconditionally. Phase 1 = the quick test (detect
+  `ra_pages * PAGE` in `bio_split_rw()`, cap to half); Phase 2 = the
+  tag. See `experiment-plan.md` §4-§5.
+- Done: filesystem + test files on `nvme0n1`; `tools/mmaptest.c`
+  (single-fault timer). Open: extending it into the contention
+  workload; the Phase 1 cap; the Phase 2 tag plumbing.
 
 ---
 
@@ -138,7 +147,10 @@ read-around는 도박이다. 캐시에 없는 페이지에 mmap fault가 나면,
   페이지가 더 빨리 도착한다;
 - (b)에는 **약이 아니다** — 두 절반이 여전히 같은 `ra_pages` 페이지를
   가져온다; 두 번째 절반을 아예 취소해야만 준다;
-- (c)를 **만든다** — 마커 위치를 모호하게 만드는 게 바로 이 분리다.
+- (c)를 **만들 수 있다** — 단, 마커를 정하는 mm 계층에서 쪼갤 때만.
+  마커를 설정하는 `page_cache_ra_order`보다 아래인 block 계층에서
+  쪼개면 마커는 mm이 둔 자리에 그대로 남아 (c)를 비켜간다. 이건
+  확인할 사항이지 목표가 아니다.
 
 즉 (a)가 분리를 하는 이유이고, (b)·(c)는 결과를 읽는 렌즈지 해결할
 목표가 아니다.
@@ -166,7 +178,8 @@ fault 페이지의 지연이 줄어드는가, (2) 그 분리가 커널을 실제
   mmap fault)를 split 커널과 baseline에서 각각 돌려, fault 페이지 지연을
   비교 — (a)에 대한 근거.
 - 결과를 세 렌즈로 모두 서술: 분리가 (a)를 개선하는가, over-read는
-  예측대로 (b) 그대로인가, 분리 후 async 마커가 (c) 오작동하는가.
+  예측대로 (b) 그대로인가, 분리가 mm 계층 아래라 async 마커가 (c)
+  그대로 유지되는가.
 
 명시적으로 범위 밖:
 
@@ -197,7 +210,12 @@ fault 페이지의 지연이 줄어드는가, (2) 그 분리가 커널을 실제
   분기의 `RAROUND` 센서가 일반 시스템 활동에서 계속 찍힌다(게스트
   `dmesg`에 수백 줄). 경로가 end-to-end로 도달 가능함을 확인.
 - 문제·목표 정의 완료(이 문서). 설계·평가 미착수.
-- 미결: 정확한 분리 경계(윈도우 계산 지점 vs 제출 지점 vs bio/request
-  레벨); read-around 마커를 블록 계층까지 어떻게 전달하는가; raw 상태인
-  `nvme0n1`에 파일시스템 + 테스트 파일 올리기; `tools/mmaptest.c`를 경합
-  워크로드로 확장.
+- 분리 경계 결정(교수님 조언, 2026-09): **block 계층**. 조언은 두
+  갈래 — 제대로 된 설계: mm이 요청에 "read-around" 태그를 달고 block
+  계층이 태그로 split; 빠른 테스트: 태그를 건너뛰고 block 계층이 고정
+  read-around IO 크기를 매칭해 무조건 2등분. 1단계 = 빠른 테스트
+  (`bio_split_rw()`에서 `ra_pages * PAGE` 감지, 절반으로 캡); 2단계 =
+  태그. `experiment-plan.md` §4-§5 참조.
+- 완료: `nvme0n1`에 파일시스템 + 테스트 파일; `tools/mmaptest.c`(단일
+  fault 타이머). 미결: 경합 워크로드로 확장; 1단계 캡; 2단계 태그
+  전달.
