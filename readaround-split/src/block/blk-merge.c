@@ -17,6 +17,14 @@
 #include "blk-rq-qos.h"
 #include "blk-throttle.h"
 
+/* --- RASPLIT instrumentation (throwaway) --- */
+static bool rasplit_watch_bio(struct bio *bio)
+{
+	return bio && bio_op(bio) == REQ_OP_READ && (bio->bi_opf & REQ_RAHEAD) &&
+	       bio->bi_bdev && bio->bi_bdev->bd_disk &&
+	       !strcmp(bio->bi_bdev->bd_disk->disk_name, "nvme0n1");
+}
+
 static inline void bio_get_first_bvec(struct bio *bio, struct bio_vec *bv)
 {
 	*bv = mp_bvec_iter_bvec(bio->bi_io_vec, bio->bi_iter);
@@ -948,6 +956,11 @@ enum bio_merge_status bio_attempt_back_merge(struct request *req,
 
 	if (!ll_back_merge_fn(req, bio, nr_segs))
 		return BIO_MERGE_FAILED;
+
+	if (rasplit_watch_bio(bio))
+		printk(KERN_INFO "RASPLIT/bmerge: req[sector=%llu bytes=%u] += bio[sector=%llu bytes=%u]\n",
+		       (unsigned long long)blk_rq_pos(req), blk_rq_bytes(req),
+		       (unsigned long long)bio->bi_iter.bi_sector, bio->bi_iter.bi_size);
 
 	trace_block_bio_backmerge(bio);
 	rq_qos_merge(req->q, req, bio);

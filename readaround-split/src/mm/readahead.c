@@ -134,6 +134,15 @@
 
 #include "internal.h"
 
+/* --- RASPLIT instrumentation (throwaway) --- */
+static bool rasplit_watch_inode(struct inode *inode)
+{
+	struct block_device *bdev = inode->i_sb->s_bdev;
+
+	return bdev && bdev->bd_disk &&
+	       !strcmp(bdev->bd_disk->disk_name, "nvme0n1");
+}
+
 /*
  * Initialise a struct file's readahead state.  Assumes that the caller has
  * memset *ra to zero.
@@ -154,6 +163,10 @@ static void read_pages(struct readahead_control *rac)
 
 	if (!readahead_count(rac))
 		return;
+
+	if (rasplit_watch_inode(rac->mapping->host))
+		printk(KERN_INFO "RASPLIT/read_pages: start=%lu nr=%u\n",
+		       (unsigned long)readahead_index(rac), readahead_count(rac));
 
 	if (unlikely(rac->_workingset))
 		psi_memstall_enter(&rac->_pflags);
@@ -479,6 +492,9 @@ void page_cache_ra_order(struct readahead_control *ractl,
 	unsigned int new_order = ra->order;
 
 	trace_page_cache_ra_order(mapping->host, start, ra);
+	if (rasplit_watch_inode(mapping->host))
+		printk(KERN_INFO "RASPLIT/ra_order: index=%lu size=%u async=%u order=%u\n",
+		       (unsigned long)start, ra->size, ra->async_size, ra->order);
 	if (!mapping_large_folio_support(mapping)) {
 		ra->order = 0;
 		goto fallback;

@@ -42,6 +42,14 @@
 #include "blk-mq-sched.h"
 #include "blk-rq-qos.h"
 
+/* --- RASPLIT instrumentation (throwaway) --- */
+static bool rasplit_watch_rq(struct request *rq)
+{
+	return rq && req_op(rq) == REQ_OP_READ && (rq->cmd_flags & REQ_RAHEAD) &&
+	       rq->q && rq->q->disk &&
+	       !strcmp(rq->q->disk->disk_name, "nvme0n1");
+}
+
 static DEFINE_PER_CPU(struct llist_head, blk_cpu_done);
 static DEFINE_PER_CPU(call_single_data_t, blk_cpu_csd);
 static DEFINE_MUTEX(blk_mq_cpuhp_lock);
@@ -1370,6 +1378,10 @@ void blk_mq_start_request(struct request *rq)
 	struct request_queue *q = rq->q;
 
 	trace_block_rq_issue(rq);
+
+	if (rasplit_watch_rq(rq))
+		printk(KERN_INFO "RASPLIT/issue: sector=%llu bytes=%u\n",
+		       (unsigned long long)blk_rq_pos(rq), blk_rq_bytes(rq));
 
 	if (test_bit(QUEUE_FLAG_STATS, &q->queue_flags) &&
 	    !blk_rq_is_passthrough(rq)) {
@@ -3212,6 +3224,10 @@ new_request:
 	rq_qos_track(q, rq, bio);
 
 	blk_mq_bio_to_request(rq, bio, nr_segs);
+
+	if (rasplit_watch_rq(rq))
+		printk(KERN_INFO "RASPLIT/newrq: sector=%llu bytes=%u nr_segs=%u\n",
+		       (unsigned long long)blk_rq_pos(rq), blk_rq_bytes(rq), nr_segs);
 
 	ret = blk_crypto_rq_get_keyslot(rq);
 	if (ret != BLK_STS_OK) {

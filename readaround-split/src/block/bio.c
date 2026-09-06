@@ -25,6 +25,14 @@
 #include "blk-rq-qos.h"
 #include "blk-cgroup.h"
 
+/* --- RASPLIT instrumentation (throwaway) --- */
+static bool rasplit_watch_bio(struct bio *bio)
+{
+	return bio && bio_op(bio) == REQ_OP_READ && (bio->bi_opf & REQ_RAHEAD) &&
+	       bio->bi_bdev && bio->bi_bdev->bd_disk &&
+	       !strcmp(bio->bi_bdev->bd_disk->disk_name, "nvme0n1");
+}
+
 #define ALLOC_CACHE_THRESHOLD	16
 #define ALLOC_CACHE_MAX		256
 
@@ -1830,6 +1838,11 @@ struct bio *bio_split(struct bio *bio, int sectors,
 	/* atomic writes cannot be split */
 	if (bio->bi_opf & REQ_ATOMIC)
 		return ERR_PTR(-EINVAL);
+
+	if (rasplit_watch_bio(bio))
+		printk(KERN_INFO "RASPLIT/bio_split: sector=%llu at=%d bytes=%u\n",
+		       (unsigned long long)bio->bi_iter.bi_sector, sectors,
+		       bio->bi_iter.bi_size);
 
 	split = bio_alloc_clone(bio->bi_bdev, bio, gfp, bs);
 	if (!split)
