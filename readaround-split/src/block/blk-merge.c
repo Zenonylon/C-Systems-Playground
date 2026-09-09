@@ -25,6 +25,15 @@ static bool rasplit_watch_bio(struct bio *bio)
 	       !strcmp(bio->bi_bdev->bd_disk->disk_name, "nvme0n1");
 }
 
+/*
+ * ===== [RASPLIT] read-around split 실험 노브 =====
+ * 런타임 on/off:  /sys/module/blk_merge/parameters/... 가 아니라
+ *   built-in이므로 부팅 파라미터 또는 아래 값을 직접 고쳐 재빌드.
+ * 간편하게 하려면 debugfs/sysfs 노출을 추가할 수 있으나 Phase 1에서는 불필요.
+ */
+static bool rasplit_enabled = true;
+#define RASPLIT_TARGET_SECTORS	256	/* 128KB = ra_pages 32 × 4KB */
+
 static inline void bio_get_first_bvec(struct bio *bio, struct bio_vec *bv)
 {
 	*bv = mp_bvec_iter_bvec(bio->bi_io_vec, bio->bi_iter);
@@ -148,6 +157,27 @@ struct bio *bio_submit_split_bioset(struct bio *bio, unsigned int split_sectors,
 }
 EXPORT_SYMBOL_GPL(bio_submit_split_bioset);
 
+/*
+ * [read-around split 분석용 주석]
+ *
+ * split의 실제 실행부. bio_split_rw()에서 계산한 split_sectors를 받아 자른다.
+ *   split_sectors < 0  : 에러 → bio 실패 처리
+ *   split_sectors == 0 : 자를 필요 없음 → 원본 그대로 반환
+ *   split_sectors > 0  : bio_submit_split_bioset()으로 자름
+ *
+ * bio_submit_split_bioset() 내부에서 벌어지는 일 (127행):
+ *   1. split = bio_split(bio, split_sectors, ...)   앞 조각을 clone
+ *      → *반환값이 앞 조각*, 인자 bio는 bio_advance로 뒤 조각(나머지)이 됨
+ *   2. bio_chain(split, bio)                        완료 순서 연결
+ *   3. trace_block_split(...)                       tracepoint (관측용!)
+ *   4. submit_bio_noacct_nocheck(bio, true)         나머지를 재제출
+ *
+ * 그리고 아래 163행에서 앞 조각에 REQ_NOMERGE를 붙인다.
+ * → 이 플래그 때문에 blk_rq_merge_ok()(906행)의 rq_mergeable() 검사에 걸려
+ *   플러그 안에서 두 조각이 다시 하나의 request로 병합되지 않는다.
+ *   상위 계층(mm)에서 쪼갠 bio에는 이 플래그가 없어서 재병합을 못 막는다.
+ *   → 교수님이 "blk 계층에서 split하는 것이 유리하다"고 한 근거.
+ */
 static struct bio *bio_submit_split(struct bio *bio, int split_sectors)
 {
 	if (unlikely(split_sectors < 0)) {
@@ -236,6 +266,26 @@ static inline unsigned int blk_boundary_sectors(const struct queue_limits *lim,
  * requests that are submitted to a block device if the start of a bio is not
  * aligned to a physical block boundary.
  */
+/*
+ * [read-around split — Phase 1 개입 지점]
+ *
+ * 역할: 이 bio를 한 번에 device로 보낼 수 있는 *최대 섹터 수*를 반환한다.
+ *       호출자 bio_split_rw()(431행)가 이 값을 max_bytes로 넘기고,
+ *       bio_split_rw_at() → bio_submit_split()이 그 크기를 넘는 부분을 잘라낸다.
+ *
+ * 즉 **반환값을 줄이면 그 크기에서 bio가 잘린다.** 자르기·chaining·재제출·
+ * REQ_NOMERGE 부착은 기존 인프라가 전부 처리하므로, split을 구현하는 데
+ * 필요한 변경은 이 함수의 반환값 하나뿐이다.
+ *
+ * 원래 반환값 계산:
+ *   max_sectors = lim->max_sectors            (장치 큐의 한 번 최대 전송량)
+ *   + chunk/boundary 경계가 있으면 그 앞까지로 축소
+ *   + 시작이 physical block 경계에 안 맞으면 끝을 pbs 경계로 정렬
+ *
+ * read-around bio는 이 한계보다 훨씬 작아서(128KB vs 보통 수백 KB~MB)
+ * 평소에는 여기서 잘리지 않는다. 아래 패치는 read-around bio에 한해
+ * 반환값을 절반으로 낮춰 강제로 2등분되게 한다.
+ */
 static inline unsigned get_max_io_size(struct bio *bio,
 				       const struct queue_limits *lim)
 {
@@ -244,6 +294,37 @@ static inline unsigned get_max_io_size(struct bio *bio,
 	bool is_atomic = bio->bi_opf & REQ_ATOMIC;
 	unsigned boundary_sectors = blk_boundary_sectors(lim, is_atomic);
 	unsigned max_sectors, start, end;
+
+	/*
+	 * ===== [RASPLIT] read-around IO 2등분 =====
+	 *
+	 * 조건 (Phase 1 — 크기 기반 휴리스틱):
+	 *   - READ 연산이고
+	 *   - REQ_RAHEAD (readahead 유래 bio: ext4_mpage_readpages가 붙임)
+	 *   - 크기가 정확히 RASPLIT_TARGET_SECTORS (= read-around 창 n페이지)
+	 *
+	 * 위 조건이면 최대 전송량을 절반으로 반환 → bio_split_rw_at()이
+	 * 그 지점에서 자르고, 나머지는 submit_bio_noacct_nocheck()로 재제출된다.
+	 *
+	 * 주의 1: REQ_RAHEAD는 순차 readahead에도 붙는다. 크기 조건으로 좁히고
+	 *         있으나 완벽한 구분은 아니다 → Phase 2에서 전용 플래그로 교체.
+	 * 주의 2: RASPLIT_TARGET_SECTORS는 게스트에서 실측한 값으로 맞출 것.
+	 *         ra_pages 32 × 4KB = 128KB = 256섹터가 기본 가정.
+	 *         (/sys/block/nvme0n1/queue/read_ahead_kb 로 확인)
+	 * 주의 3: split이 일어나면 bio_split_io_at() 안의 bio_clear_polled()로
+	 *         REQ_POLLED가 해제된다. 폴링 지연 측정 시 반드시 기록할 것.
+	 */
+	if (rasplit_enabled &&
+	    bio_op(bio) == REQ_OP_READ &&
+	    (bio->bi_opf & REQ_RAHEAD) &&
+	    bio_sectors(bio) == RASPLIT_TARGET_SECTORS) {
+		unsigned half = RASPLIT_TARGET_SECTORS / 2;
+
+		pr_info_ratelimited("RASPLIT: sector=%llu sectors=%u -> %u+%u\n",
+			(unsigned long long)bio->bi_iter.bi_sector,
+			bio_sectors(bio), half, bio_sectors(bio) - half);
+		return half;
+	}
 
 	/*
 	 * We ignore lim->max_sectors for atomic writes because it may less
