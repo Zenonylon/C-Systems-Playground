@@ -1,0 +1,11 @@
+# mmaptest --samples 5 --seed 1, /mnt/raround/rnd.bin, emulated NVMe guest
+# fault-to-touch latency (ns) per sampled page offset, same seed both kernels.
+# baseline = 7.1.2-rasplit #5 (RASPLIT probes, no split logic)
+# split    = 7.1.2-rasplit #6 (probes + block-layer size-triggered split, 128+128 sectors)
+# n=5, warmup included, single run each -- indicative only, not a rigorous p50/p99.
+pgoff,baseline_ns,split_ns
+129921,1628918,1389865
+77307,1980734,824595
+126804,878368,767201
+62943,941792,786864
+29153,961657,646857

@@ -1,0 +1,50 @@
+# Kernel 7.1.2-rasplit #6 (probes + block-layer size-triggered split)
+# guest, ext4 on emulated NVMe /mnt/raround, read_ahead_kb=128 (ra_pages=32)
+# workload: mmaptest --samples 5 --seed 1  on /mnt/raround/rnd.bin
+# dmesg lines matching RASPLIT|RAROUND, with root-fs RAROUND (ra_pages=2048) filtered out
+
+[   29.001066] RAROUND: pgoff=129921 ra_pages=32 size=32
+[   29.001069] RASPLIT/ra_order: index=129905 size=32 async=8 order=0
+[   29.001096] RASPLIT/read_pages: start=129905 nr=32
+[   29.001652] RASPLIT: sector=2431880 sectors=256 -> 128+128
+[   29.001655] RASPLIT/bio_split: sector=2431880 at=128 bytes=131072
+[   29.001657] RASPLIT/newrq: sector=2431880 bytes=65536 nr_segs=16
+[   29.001659] RASPLIT/newrq: sector=2432008 bytes=65536 nr_segs=16
+[   29.001671] RASPLIT/issue: sector=2431880 bytes=65536
+[   29.001673] RASPLIT/issue: sector=2432008 bytes=65536
+[   29.002538] RAROUND: pgoff=77307 ra_pages=32 size=32
+[   29.002540] RASPLIT/ra_order: index=77291 size=32 async=8 order=0
+[   29.002557] RASPLIT/read_pages: start=77291 nr=32
+[   29.002560] RASPLIT: sector=1994584 sectors=256 -> 128+128
+[   29.002562] RASPLIT/bio_split: sector=1994584 at=128 bytes=131072
+[   29.002564] RASPLIT/newrq: sector=1994584 bytes=65536 nr_segs=16
+[   29.002565] RASPLIT/newrq: sector=1994712 bytes=65536 nr_segs=3
+[   29.002567] RASPLIT/issue: sector=1994584 bytes=65536
+[   29.002568] RASPLIT/issue: sector=1994712 bytes=65536
+[   29.003422] RAROUND: pgoff=126804 ra_pages=32 size=32
+[   29.003424] RASPLIT/ra_order: index=126788 size=32 async=8 order=0
+[   29.003441] RASPLIT/read_pages: start=126788 nr=32
+[   29.003445] RASPLIT: sector=2406944 sectors=256 -> 128+128
+[   29.003446] RASPLIT/bio_split: sector=2406944 at=128 bytes=131072
+[   29.003448] RASPLIT/newrq: sector=2406944 bytes=65536 nr_segs=16
+[   29.003450] RASPLIT/newrq: sector=2407072 bytes=65536 nr_segs=16
+[   29.003452] RASPLIT/issue: sector=2406944 bytes=65536
+[   29.003453] RASPLIT/issue: sector=2407072 bytes=65536
+[   29.004246] RAROUND: pgoff=62943 ra_pages=32 size=32
+[   29.004248] RASPLIT/ra_order: index=62927 size=32 async=8 order=0
+[   29.004264] RASPLIT/read_pages: start=62927 nr=32
+[   29.004268] RASPLIT: sector=1879672 sectors=256 -> 128+128
+[   29.004270] RASPLIT/bio_split: sector=1879672 at=128 bytes=131072
+[   29.004272] RASPLIT/newrq: sector=1879672 bytes=65536 nr_segs=16
+[   29.004273] RASPLIT/newrq: sector=1879800 bytes=65536 nr_segs=3
+[   29.004276] RASPLIT/issue: sector=1879672 bytes=65536
+[   29.004277] RASPLIT/issue: sector=1879800 bytes=65536
+[   29.005092] RAROUND: pgoff=29153 ra_pages=32 size=32
+[   29.005095] RASPLIT/ra_order: index=29137 size=32 async=8 order=0
+[   29.005111] RASPLIT/read_pages: start=29137 nr=32
+[   29.005115] RASPLIT: sector=1592968 sectors=256 -> 128+128
+[   29.005116] RASPLIT/bio_split: sector=1592968 at=128 bytes=131072
+[   29.005118] RASPLIT/newrq: sector=1592968 bytes=65536 nr_segs=16
+[   29.005119] RASPLIT/newrq: sector=1593096 bytes=65536 nr_segs=16
+[   29.005121] RASPLIT/issue: sector=1592968 bytes=65536
+[   29.005123] RASPLIT/issue: sector=1593096 bytes=65536
