@@ -101,6 +101,42 @@ printk(KERN_INFO "RAROUND: pgoff=%lu ra_pages=%u size=%u\n",
 This is instrumentation only — establishing that the loop above works
 end-to-end — not the split implementation itself.
 
+## Measurement hygiene (added 2026-09-16, after M1)
+
+Three things silently corrupt latency measurements in this setup. All were
+hit for real; see [`../results/phase1-m1-latency.md`](../results/phase1-m1-latency.md)
+for the evidence.
+
+1. **Launch QEMU with `cache=none` on the nvme drive.** Without it the host
+   page cache serves guest reads out of host RAM, and the guest's
+   `drop_caches` cannot clear it. With a fixed `--seed` every run reads the
+   same pages, so each run warms the cache for the next and the
+   last-measured kernel wins by ~3x. The launch line is:
+   ```
+   cd ~/qemu-lab && qemu-system-x86_64 -m 4G -smp 4 -enable-kvm \
+     -drive file=ubuntu.qcow2,if=virtio,format=qcow2 \
+     -drive file=nvme_disk.raw,id=nvm,if=none,format=raw,cache=none,aio=native \
+     -device nvme,id=nvme0,serial=deadbeef \
+     -device nvme-ns,drive=nvm,bus=nvme0,nsid=1,logical_block_size=512,physical_block_size=512 \
+     -net nic -net user,hostfwd=tcp::2222-:22 -nographic
+   ```
+2. **`sudo dmesg -n 1` before every timed run.** The console is
+   `ttyS0,115200n8` and console printk sits on the measured path. It is also
+   *asymmetric*: the split kernel emits 3 more probe lines per fault than
+   baseline, so leaving the console on handicaps the split (p99 −43.7% when
+   silenced).
+3. **Background apt is disabled in the guest** (`apt-daily.timer` and
+   `apt-daily-upgrade.timer` disabled + masked, `APT::Periodic::*` set to 0
+   in `/etc/apt/apt.conf.d/20auto-upgrades`). It otherwise fires on boot and
+   installs packages underneath the measurement. Undo with `systemctl unmask
+   --now` + `enable` and restoring that file to `1` if the guest ever needs
+   real updates again.
+
+Also note **`/tmp` is cleared on guest reboot** — `mmaptest` and any `.deb`
+staged there must be re-copied after every reboot. Build it the same way
+each time (`gcc -O2 -o /tmp/mmaptest /tmp/mmaptest.c`) so the binary is not
+a variable between kernels.
+
 ## Gotchas hit while setting this up
 
 - Host needs `flex bison libssl-dev libelf-dev bc dwarves zstd` to build,
@@ -224,6 +260,40 @@ printk(KERN_INFO "RAROUND: pgoff=%lu ra_pages=%u size=%u\n",
 
 이건 순수 계측용이다 — 위 루프가 처음부터 끝까지 제대로 도는지 확인하기
 위한 것이지, split 구현 자체가 아니다.
+
+## 측정 위생 (2026-09-16 추가, M1 이후)
+
+이 셋업에서 지연 측정을 조용히 망가뜨리는 것이 세 가지 있다. 전부 실제로
+당했다. 근거는
+[`../results/phase1-m1-latency.md`](../results/phase1-m1-latency.md) 참조.
+
+1. **QEMU를 nvme 드라이브에 `cache=none`으로 띄울 것.** 안 그러면 호스트
+   페이지 캐시가 게스트 읽기를 호스트 RAM에서 처리해버리고, 게스트의
+   `drop_caches`로는 그걸 못 비운다. `--seed`를 고정하면 매 실행이 같은
+   페이지를 읽으므로 앞 실행이 뒤 실행을 위해 캐시를 데워주고, 결국 마지막에
+   측정한 커널이 3배쯤 이긴다. 기동 커맨드:
+   ```
+   cd ~/qemu-lab && qemu-system-x86_64 -m 4G -smp 4 -enable-kvm \
+     -drive file=ubuntu.qcow2,if=virtio,format=qcow2 \
+     -drive file=nvme_disk.raw,id=nvm,if=none,format=raw,cache=none,aio=native \
+     -device nvme,id=nvme0,serial=deadbeef \
+     -device nvme-ns,drive=nvm,bus=nvme0,nsid=1,logical_block_size=512,physical_block_size=512 \
+     -net nic -net user,hostfwd=tcp::2222-:22 -nographic
+   ```
+2. **타이밍 측정 전 매번 `sudo dmesg -n 1`.** 콘솔이 `ttyS0,115200n8`이고
+   콘솔 printk는 측정 경로 위에 있다. 게다가 *비대칭*이다 — split 커널이
+   fault당 프로브 3줄을 더 뱉으므로, 콘솔을 켜두면 split에 핸디캡이 붙는다
+   (끄면 p99 −43.7%).
+3. **게스트의 백그라운드 apt는 꺼져 있다** (`apt-daily.timer`,
+   `apt-daily-upgrade.timer` disable + mask, `/etc/apt/apt.conf.d/20auto-upgrades`의
+   `APT::Periodic::*`를 0으로). 안 끄면 부팅 때 떠서 측정 밑에서 패키지를
+   설치한다. 게스트에 실제 업데이트가 다시 필요해지면 `systemctl unmask
+   --now` + `enable`과 그 파일을 `1`로 되돌리면 된다.
+
+그리고 **게스트 재부팅 시 `/tmp`이 비워진다** — 거기 올려둔 `mmaptest`와
+`.deb`는 재부팅마다 다시 복사해야 한다. 커널 간 비교에서 바이너리가 변수가
+되지 않도록 매번 같은 방식으로 빌드할 것
+(`gcc -O2 -o /tmp/mmaptest /tmp/mmaptest.c`).
 
 ## 환경 구축 중 겪은 문제들
 

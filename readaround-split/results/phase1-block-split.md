@@ -61,6 +61,13 @@ contiguous pages coalescing into fewer bvecs. Cosmetic; both halves are
 
 ## Latency (M1) — preliminary
 
+> **Superseded (2026-09-16).** The table below is a measurement artifact, not
+> a kernel effect. QEMU was running without `cache=none`, so the host page
+> cache served the second kernel measured from RAM warmed by the first; with
+> `--seed 1` both kernels read the same pages, so run order decided the
+> winner. The corrected 200-sample result (p50 −3.4%, p90 −9.0%) and the full
+> confound analysis are in [`phase1-m1-latency.md`](phase1-m1-latency.md).
+
 Same seed, same 5 page offsets, one run each
 ([`data/phase1-latency.csv`](data/phase1-latency.csv)):
 
@@ -165,6 +172,13 @@ RASPLIT/issue:     sector=2432008 bytes=65536             뒤 -> device
 - **H1 (지연)** — *예비 신호, 긍정적* (아래).
 
 ## 지연 (M1) — 예비
+
+> **대체됨 (2026-09-16).** 아래 표는 커널 효과가 아니라 측정 아티팩트다.
+> QEMU가 `cache=none` 없이 돌고 있어서, 나중에 측정한 커널이 앞 실행이
+> 데워놓은 호스트 페이지 캐시에서 읽었다. `--seed 1`이라 두 커널이 같은
+> 페이지를 읽으므로 실행 순서가 승자를 정한 셈이다. 교정된 200샘플 결과
+> (p50 −3.4%, p90 −9.0%)와 교란 요인 분석 전문은
+> [`phase1-m1-latency.md`](phase1-m1-latency.md)에 있다.
 
 같은 시드, 같은 5개 page offset, 각 1회
 ([`data/phase1-latency.csv`](data/phase1-latency.csv)):
